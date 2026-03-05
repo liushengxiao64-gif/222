@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Neon Snake - 高品质贪吃蛇</title>
+  <style>
+    :root {
+      --bg-0: #090b12;
+      --bg-1: #101425;
+      --panel: rgba(16, 22, 42, 0.75);
+      --line: rgba(110, 190, 255, 0.28);
+      --text: #e6f3ff;
+      --text-dim: #8fa8c8;
+      --cyan: #00e6ff;
+      --purple: #aa6dff;
+      --green: #50ff95;
+      --orange: #ffb347;
+      --danger: #ff5c8a;
+      --shadow: 0 16px 45px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 15% 10%, #16284c 0, transparent 40%),
+        radial-gradient(circle at 85% 90%, #2c1249 0, transparent 35%),
+        linear-gradient(160deg, var(--bg-0), var(--bg-1));
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .app {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      position: relative;
+    }
+
+    .game-shell {
+      width: min(94vw, 820px);
+      aspect-ratio: 1 / 1.08;
+      max-height: 94vh;
+      position: relative;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      border: 1px solid rgba(126, 178, 255, 0.2);
+      background: rgba(7, 10, 20, 0.72);
+      backdrop-filter: blur(10px);
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .badge-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      pointer-events: auto;
+      padding: 8px 12px;
+      border-radius: 12px;
+      background: rgba(13, 18, 36, 0.76);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .badge strong { color: var(--cyan); font-weight: 700; }
+
+    .status-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .status-pill {
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: 0.25s ease;
+      background: rgba(8, 14, 30, 0.86);
+    }
+
+    .status-pill.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .bottom-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .tips {
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(143,168,200,0.25);
+      background: rgba(9, 12, 24, 0.68);
+    }
+
+    .btn {
+      pointer-events: auto;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      color: var(--text);
+      background: linear-gradient(180deg, rgba(42, 56, 95, 0.85), rgba(16, 24, 46, 0.85));
+      border-radius: 12px;
+      padding: 8px 14px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      transition: transform 0.15s ease, filter 0.2s ease;
+    }
+    .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn:active { transform: translateY(1px) scale(0.98); }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at center, rgba(18, 26, 56, 0.35), rgba(2, 3, 8, 0.72));
+      backdrop-filter: blur(8px);
+      transition: opacity 0.3s ease;
+      padding: 20px;
+    }
+
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .panel {
+      width: min(92%, 480px);
+      border-radius: 22px;
+      padding: 24px;
+      border: 1px solid rgba(120, 185, 255, 0.26);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 5vw, 44px);
+      letter-spacing: 1px;
+      color: #dff6ff;
+      text-shadow: 0 0 20px rgba(0, 224, 255, 0.35);
+    }
+
+    .subtitle { color: var(--text-dim); margin: 8px 0 20px; }
+
+    .menu-grid {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+      text-align: left;
+      color: #bfd6f2;
+      font-size: 14px;
+      background: rgba(9, 14, 28, 0.65);
+      border: 1px solid rgba(140, 190, 255, 0.2);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .big {
+      padding: 12px 20px;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(0, 232, 255, 0.28), rgba(41, 90, 204, 0.4));
+      border-color: rgba(128, 235, 255, 0.6);
+    }
+
+    .score-pop {
+      position: absolute;
+      font-weight: 800;
+      pointer-events: none;
+      text-shadow: 0 0 10px rgba(255,255,255,0.35);
+      animation: popFade 700ms ease-out forwards;
+    }
+
+    @keyframes popFade {
+      from { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+      20% { opacity: 1; }
+      to { opacity: 0; transform: translate(-50%, -110%) scale(1.1); }
+    }
+
+    @media (max-width: 680px) {
+      .tips { font-size: 11px; }
+      .badge { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="game-shell" id="gameShell">
+      <canvas id="gameCanvas"></canvas>
+
+      <div class="hud">
+        <div class="top-row">
+          <div class="badge-group">
+            <div class="badge">得分 <strong id="scoreValue">0</strong></div>
+            <div class="badge">最高分 <strong id="highValue">0</strong></div>
+            <button class="btn" id="pauseBtn">暂停</button>
+          </div>
+          <div class="status-bar">
+            <div class="status-pill" id="buffSpeed">⚡ 加速 x2</div>
+            <div class="status-pill" id="buffShield">🛡 护盾穿墙</div>
+            <div class="status-pill" id="buffPoison">🍄 反转控制</div>
+          </div>
+        </div>
+        <div class="bottom-row">
+          <div class="tips">键盘: WASD / 方向键 · Space 暂停 | 手机: 滑动控制</div>
+        </div>
+      </div>
+
+      <div class="overlay" id="menuOverlay">
+        <div class="panel">
+          <h1>NEON SNAKE</h1>
+          <p class="subtitle">商业级质感 · 平滑移动 · 特效反馈</p>
+          <div class="menu-grid">
+            <div>🍎 普通食物：+10 分，蛇变长</div>
+            <div>⚡ 加速星：短时间加速 + 双倍得分</div>
+            <div>🛡 无敌护盾：可穿墙不死</div>
+            <div>🍄 毒蘑菇：扣分并反转控制</div>
+          </div>
+          <div class="actions">
+            <button class="btn big" id="startBtn">开始游戏</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay hidden" id="gameOverOverlay">
+        <div class="panel">
+          <h1>GAME OVER</h1>
+          <p class="subtitle" id="finalStat"></p>
+          <div class="actions">
+            <button class="btn big" id="restartBtn">再来一局</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    class InputController {
+      constructor(game) {
+        this.game = game;
+        this.touchStart = null;
+        this.bind();
+      }
+
+      bind() {
+        window.addEventListener('keydown', (e) => {
+          const key = e.key.toLowerCase();
+          if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d", " "].includes(key)) {
+            e.preventDefault();
+          }
+          if (key === ' ' || key === 'spacebar') {
+            this.game.togglePause();
+            return;
+          }
+          const map = {
+            arrowup: 'up', w: 'up',
+            arrowdown: 'down', s: 'down',
+            arrowleft: 'left', a: 'left',
+            arrowright: 'right', d: 'right'
+          };
+          if (map[key]) this.game.requestDirection(map[key]);
+        }, { passive: false });
+
+        const target = this.game.shell;
+        target.addEventListener('touchstart', (e) => {
+          if (!e.touches[0]) return;
+          this.touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }, { passive: true });
+
+        target.addEventListener('touchmove', (e) => {
+          if (!this.touchStart || !e.touches[0]) return;
+          const dx = e.touches[0].clientX - this.touchStart.x;
+          const dy = e.touches[0].clientY - this.touchStart.y;
+          const absX = Math.abs(dx), absY = Math.abs(dy);
+          if (Math.max(absX, absY) < 24) return;
+          if (absX > absY) this.game.requestDirection(dx > 0 ? 'right' : 'left');
+          else this.game.requestDirection(dy > 0 ? 'down' : 'up');
+          this.touchStart = null;
+        }, { passive: true });
+      }
+    }
+
+    class ParticleSystem {
+      constructor() { this.particles = []; }
+      burst(x, y, color, count = 24) {
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 40 + Math.random() * 220;
+          this.particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 0.25 + Math.random() * 0.4,
+            age: 0,
+            size: 2 + Math.random() * 5,
+            color
+          });
+        }
+      }
+      update(dt) {
+        this.particles = this.particles.filter((p) => {
+          p.age += dt;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 420 * dt;
+          p.vx *= 0.98;
+          return p.age < p.life;
+        });
+      }
+      draw(ctx) {
+        for (const p of this.particles) {
+          const alpha = 1 - p.age / p.life;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    class Food {
+      static TYPES = {
+        normal: { color: '#ff7aa8', score: 10, grow: 1, chance: 0.7, radius: 0.36 },
+        speed: { color: '#ffd644', score: 20, grow: 1, chance: 0.12, radius: 0.4 },
+        shield: { color: '#58f4ff', score: 15, grow: 1, chance: 0.1, radius: 0.4 },
+        poison: { color: '#b788ff', score: -12, grow: 0, chance: 0.08, radius: 0.38 }
+      };
+
+      static randomType() {
+        const r = Math.random();
+        let acc = 0;
+        for (const [type, conf] of Object.entries(Food.TYPES)) {
+          acc += conf.chance;
+          if (r <= acc) return type;
+        }
+        return 'normal';
+      }
+
+      constructor(x, y, type = 'normal') {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.pulse = Math.random() * Math.PI * 2;
+      }
+
+      get conf() { return Food.TYPES[this.type]; }
+    }
+
+    class Snake {
+      constructor(gridSize) {
+        this.gridSize = gridSize;
+        this.reset();
+      }
+
+      reset() {
+        const c = Math.floor(this.gridSize / 2);
+        this.segments = [{ x: c, y: c }, { x: c - 1, y: c }, { x: c - 2, y: c }];
+        this.direction = 'right';
+        this.nextDirection = 'right';
+        this.moveProgress = 0;
+        this.pendingGrowth = 0;
+        this.prevHead = { ...this.segments[0] };
+      }
+
+      static OPP = { up: 'down', down: 'up', left: 'right', right: 'left' };
+      static DIR = {
+        up: { x: 0, y: -1 },
+        down: { x: 0, y: 1 },
+        left: { x: -1, y: 0 },
+        right: { x: 1, y: 0 }
+      };
+
+      setDirection(dir) {
+        if (!dir || Snake.OPP[this.direction] === dir) return;
+        this.nextDirection = dir;
+      }
+
+      move() {
+        if (Snake.OPP[this.direction] !== this.nextDirection) this.direction = this.nextDirection;
+        const v = Snake.DIR[this.direction];
+        this.prevHead = { ...this.segments[0] };
+        const newHead = { x: this.segments[0].x + v.x, y: this.segments[0].y + v.y };
+        this.segments.unshift(newHead);
+        if (this.pendingGrowth > 0) this.pendingGrowth--;
+        else this.segments.pop();
+      }
+
+      grow(n = 1) { this.pendingGrowth += n; }
+
+      hasSelfCollision() {
+        const [head, ...body] = this.segments;
+        return body.some(s => s.x === head.x && s.y === head.y);
+      }
+
+      occupies(x, y, includeHead = true) {
+        return this.segments.some((s, i) => (includeHead || i > 0) && s.x === x && s.y === y);
+      }
+    }
+
+    class UIManager {
+      constructor(game) {
+        this.game = game;
+        this.scoreEl = document.getElementById('scoreValue');
+        this.highEl = document.getElementById('highValue');
+        this.menu = document.getElementById('menuOverlay');
+        this.over = document.getElementById('gameOverOverlay');
+        this.final = document.getElementById('finalStat');
+        this.pauseBtn = document.getElementById('pauseBtn');
+        this.buffSpeed = document.getElementById('buffSpeed');
+        this.buffShield = document.getElementById('buffShield');
+        this.buffPoison = document.getElementById('buffPoison');
+
+        document.getElementById('startBtn').addEventListener('click', () => this.game.startGame());
+        document.getElementById('restartBtn').addEventListener('click', () => this.game.startGame());
+        this.pauseBtn.addEventListener('click', () => this.game.togglePause());
+      }
+
+      updateScore(score, high) {
+        this.scoreEl.textContent = score;
+        this.highEl.textContent = high;
+      }
+
+      showMenu(show) { this.menu.classList.toggle('hidden', !show); }
+      showGameOver(score, high) {
+        this.final.textContent = `本局得分 ${score} · 历史最高 ${high}`;
+        this.over.classList.remove('hidden');
+      }
+      hideGameOver() { this.over.classList.add('hidden'); }
+
+      updateBuffs(effects) {
+        this.togglePill(this.buffSpeed, effects.speed > 0);
+        this.togglePill(this.buffShield, effects.shield > 0);
+        this.togglePill(this.buffPoison, effects.poison > 0);
+      }
+      togglePill(el, active) { el.classList.toggle('active', !!active); }
+
+      updatePauseBtn(paused) { this.pauseBtn.textContent = paused ? '继续' : '暂停'; }
+
+      spawnScorePop(text, x, y, color = '#fff') {
+        const pop = document.createElement('div');
+        pop.className = 'score-pop';
+        pop.textContent = text;
+        pop.style.color = color;
+        pop.style.left = `${x}px`;
+        pop.style.top = `${y}px`;
+        this.game.shell.appendChild(pop);
+        setTimeout(() => pop.remove(), 740);
+      }
+    }
+
+    class GameEngine {
+      constructor() {
+        this.shell = document.getElementById('gameShell');
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.gridSize = 24;
+        this.snake = new Snake(this.gridSize);
+        this.food = null;
+        this.particles = new ParticleSystem();
+        this.input = new InputController(this);
+        this.ui = new UIManager(this);
+        this.state = 'menu';
+        this.score = 0;
+        this.highScore = Number(localStorage.getItem('neon_snake_high') || 0);
+        this.baseStepDuration = 0.2;
+        this.timeAccumulator = 0;
+        this.lastTime = 0;
+        this.shakeTime = 0;
+        this.shakePower = 0;
+        this.effects = { speed: 0, shield: 0, poison: 0 };
+        this.resize();
+        this.spawnFood();
+        this.ui.updateScore(this.score, this.highScore);
+        window.addEventListener('resize', () => this.resize());
+        requestAnimationFrame((t) => this.loop(t));
+      }
+
+      resize() {
+        const rect = this.shell.getBoundingClientRect();
+        const ratio = window.devicePixelRatio || 1;
+        this.canvas.width = Math.floor(rect.width * ratio);
+        this.canvas.height = Math.floor(rect.height * ratio);
+        this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        this.width = rect.width;
+        this.height = rect.height;
+        this.cell = Math.min(this.width, this.height) / this.gridSize;
+      }
+
+      requestDirection(dir) {
+        if (this.effects.poison > 0) {
+          const reverse = { up: 'down', down: 'up', left: 'right', right: 'left' };
+          dir = reverse[dir];
+        }
+        if (this.state === 'running') this.snake.setDirection(dir);
+      }
+
+      startGame() {
+        this.state = 'running';
+        this.score = 0;
+        this.snake.reset();
+        this.effects = { speed: 0, shield: 0, poison: 0 };
+        this.timeAccumulator = 0;
+        this.ui.showMenu(false);
+        this.ui.hideGameOver();
+        this.ui.updateScore(this.score, this.highScore);
+        this.ui.updatePauseBtn(false);
+        this.spawnFood();
+      }
+
+      togglePause() {
+        if (this.state === 'running') this.state = 'paused';
+        else if (this.state === 'paused') this.state = 'running';
+        this.ui.updatePauseBtn(this.state === 'paused');
+      }
+
+      gameOver() {
+        this.state = 'over';
+        if (this.score > this.highScore) {
+          this.highScore = this.score;
+          localStorage.setItem('neon_snake_high', String(this.highScore));
+        }
+        this.ui.updateScore(this.score, this.highScore);
+        this.ui.showGameOver(this.score, this.highScore);
+      }
+
+      stepDuration() {
+        const progress = Math.min(1, this.score / 600);
+        const nonlinear = 0.2 - 0.11 * (1 - Math.exp(-3 * progress));
+        const speedBuff = this.effects.speed > 0 ? 0.65 : 1;
+        return nonlinear * speedBuff;
+      }
+
+      spawnFood() {
+        let x, y;
+        do {
+          x = Math.floor(Math.random() * this.gridSize);
+          y = Math.floor(Math.random() * this.gridSize);
+        } while (this.snake.occupies(x, y));
+        this.food = new Food(x, y, Food.randomType());
+      }
+
+      handleFoodEat() {
+        const type = this.food.type;
+        const conf = this.food.conf;
+        const points = conf.score * (this.effects.speed > 0 ? 2 : 1);
+        this.score = Math.max(0, this.score + points);
+        this.snake.grow(conf.grow);
+
+        if (type === 'speed') this.effects.speed = 6;
+        if (type === 'shield') this.effects.shield = 8;
+        if (type === 'poison') this.effects.poison = 5;
+
+        const fx = (this.food.x + 0.5) * this.cell;
+        const fy = (this.food.y + 0.5) * this.cell;
+        this.particles.burst(fx, fy, conf.color, type === 'normal' ? 20 : 36);
+        this.triggerShake(type === 'normal' ? 0.12 : 0.24, type === 'normal' ? 3 : 7);
+        this.ui.spawnScorePop(`${points >= 0 ? '+' : ''}${points}`, fx, fy, conf.color);
+
+        if (this.score > this.highScore) {
+          this.highScore = this.score;
+          localStorage.setItem('neon_snake_high', String(this.highScore));
+        }
+
+        this.ui.updateScore(this.score, this.highScore);
+        this.spawnFood();
+      }
+
+      triggerShake(duration, power) {
+        this.shakeTime = Math.max(this.shakeTime, duration);
+        this.shakePower = Math.max(this.shakePower, power);
+      }
+
+      update(dt) {
+        if (this.state !== 'running') {
+          this.particles.update(dt);
+          return;
+        }
+
+        this.effects.speed = Math.max(0, this.effects.speed - dt);
+        this.effects.shield = Math.max(0, this.effects.shield - dt);
+        this.effects.poison = Math.max(0, this.effects.poison - dt);
+        this.ui.updateBuffs(this.effects);
+
+        this.timeAccumulator += dt;
+        const step = this.stepDuration();
+
+        // 平滑插值核心：在离散逻辑步之间使用 progress(0-1) 进行渲染插值
+        while (this.timeAccumulator >= step) {
+          this.timeAccumulator -= step;
+          this.snake.move();
+
+          const head = this.snake.segments[0];
+          const outX = head.x < 0 || head.x >= this.gridSize;
+          const outY = head.y < 0 || head.y >= this.gridSize;
+
+          if (outX || outY) {
+            if (this.effects.shield > 0) {
+              head.x = (head.x + this.gridSize) % this.gridSize;
+              head.y = (head.y + this.gridSize) % this.gridSize;
+              this.particles.burst((head.x + 0.5) * this.cell, (head.y + 0.5) * this.cell, '#58f4ff', 16);
+            } else {
+              this.triggerShake(0.2, 8);
+              this.gameOver();
+              return;
+            }
+          }
+
+          if (this.snake.hasSelfCollision()) {
+            this.triggerShake(0.25, 10);
+            this.gameOver();
+            return;
+          }
+
+          if (head.x === this.food.x && head.y === this.food.y) {
+            this.handleFoodEat();
+          }
+        }
+
+        this.snake.moveProgress = this.timeAccumulator / step;
+        this.particles.update(dt);
+
+        if (this.shakeTime > 0) {
+          this.shakeTime = Math.max(0, this.shakeTime - dt);
+          if (this.shakeTime === 0) this.shakePower = 0;
+        }
+      }
+
+      renderGrid() {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(94, 142, 210, 0.16)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= this.gridSize; i++) {
+          const p = i * this.cell;
+          ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(this.gridSize * this.cell, p); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, this.gridSize * this.cell); ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      drawFood() {
+        const ctx = this.ctx;
+        const f = this.food;
+        const conf = f.conf;
+        f.pulse += 0.07;
+        const px = (f.x + 0.5) * this.cell;
+        const py = (f.y + 0.5) * this.cell;
+        const r = this.cell * conf.radius * (1 + Math.sin(f.pulse) * 0.07);
+
+        const glow = ctx.createRadialGradient(px, py, 0, px, py, r * 2.3);
+        glow.addColorStop(0, conf.color + 'cc');
+        glow.addColorStop(1, conf.color + '00');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(px, py, r * 2.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = conf.color;
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      drawSnake() {
+        const ctx = this.ctx;
+        const p = this.snake.moveProgress;
+        const dir = Snake.DIR[this.snake.direction];
+        for (let i = this.snake.segments.length - 1; i >= 0; i--) {
+          const seg = this.snake.segments[i];
+          let x = seg.x;
+          let y = seg.y;
+
+          // 头部在逻辑格之间根据 progress 平滑移动
+          if (i === 0) {
+            x = this.snake.prevHead.x + dir.x * p;
+            y = this.snake.prevHead.y + dir.y * p;
+          }
+
+          const px = (x + 0.5) * this.cell;
+          const py = (y + 0.5) * this.cell;
+          const radius = this.cell * (i === 0 ? 0.42 : 0.37);
+          const hue = 180 - i * 2;
+          const sat = this.effects.poison > 0 ? 52 : 84;
+          const light = Math.max(42, 70 - i * 1.1);
+          const color = `hsl(${hue}, ${sat}%, ${light}%)`;
+
+          const glow = ctx.createRadialGradient(px, py, 0, px, py, radius * 2.5);
+          glow.addColorStop(0, color.replace('hsl', 'hsla').replace(')', ',0.35)'));
+          glow.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath(); ctx.arc(px, py, radius * 2.5, 0, Math.PI * 2); ctx.fill();
+
+          ctx.fillStyle = color;
+          ctx.beginPath(); ctx.roundRect(px - radius, py - radius, radius * 2, radius * 2, radius * 0.9);
+          ctx.fill();
+
+          if (i === 0) {
+            ctx.fillStyle = '#fff';
+            const ex = radius * 0.4;
+            ctx.beginPath(); ctx.arc(px - ex * (dir.y === 0 ? 0.4 : 1), py - ex * (dir.x === 0 ? 0.4 : 1), 2.8, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(px + ex * (dir.y === 0 ? 0.4 : 1), py + ex * (dir.x === 0 ? 0.4 : 1), 2.8, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+      }
+
+      render() {
+        const ctx = this.ctx;
+        ctx.clearRect(0, 0, this.width, this.height);
+        const sx = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakePower : 0;
+        const sy = this.shakeTime > 0 ? (Math.random() - 0.5) * this.shakePower : 0;
+        ctx.save();
+        ctx.translate(sx, sy);
+
+        const grad = ctx.createLinearGradient(0, 0, this.width, this.height);
+        grad.addColorStop(0, 'rgba(7, 14, 31, 0.96)');
+        grad.addColorStop(1, 'rgba(12, 10, 28, 0.96)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        this.renderGrid();
+        this.drawFood();
+        this.drawSnake();
+        this.particles.draw(ctx);
+
+        if (this.state === 'paused') {
+          ctx.fillStyle = 'rgba(8, 14, 30, 0.55)';
+          ctx.fillRect(0, 0, this.width, this.height);
+          ctx.fillStyle = '#dff6ff';
+          ctx.font = '700 48px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('PAUSED', this.width / 2, this.height / 2);
+        }
+
+        ctx.restore();
+      }
+
+      loop(t) {
+        if (!this.lastTime) this.lastTime = t;
+        const dt = Math.min(0.033, (t - this.lastTime) / 1000);
+        this.lastTime = t;
+        this.update(dt);
+        this.render();
+        requestAnimationFrame((n) => this.loop(n));
+      }
+    }
+
+    new GameEngine();
+  </script>
+</body>
+</html>
